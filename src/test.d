@@ -57,5 +57,5 @@ void main() {
 }
 
 void doSomething(EventMsg m) {
-    throw new Error("Bum");
+    throw new Error("Oh dear");
 }
