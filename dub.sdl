@@ -1,0 +1,23 @@
+
+name "events"
+platforms "windows"
+	
+buildType "debug" {
+	buildOptions "debugMode" "debugInfo" "alwaysStackFrame" "stackStomping" "warningsAsErrors"
+}
+buildType "release" {
+	buildOptions "releaseMode" "optimize" "inline" "noBoundsCheck" 
+}
+
+configuration "test" {
+	mainSourceFile "src/test.d"
+	targetType "executable"
+	targetName "bin-test"
+}
+configuration "library" {
+	targetType "library"
+	excludedSourceFiles "src/test.d"
+}
+
+dependency "common" version="~master"
+dependency "logging" version="~master"
