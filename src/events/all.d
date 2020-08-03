@@ -6,7 +6,7 @@ import events;
 import logging;
 import common :
     Array, Async, IQueue,
-    bitcast, expect, isObject, makeMPMCQueue, flushConsole;
+    bitcastTo, expect, isObject, makeMPMCQueue, flushConsole;
 
 import std.stdio    : writefln;
 import std.format   : format;

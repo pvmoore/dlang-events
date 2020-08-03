@@ -24,7 +24,7 @@ module events.msg;
  */
 import events.all;
 
-final struct EventMsg {
+struct EventMsg {
     ulong id;
     ulong payload;
 
@@ -34,7 +34,7 @@ final struct EventMsg {
     }
     this(ulong id, double p) {
         this.id = id;
-        this.payload = p.bitcast!ulong;
+        this.payload = p.bitcastTo!ulong;
     }
     this(ulong id, void* p) {
         this.id = id;
