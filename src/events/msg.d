@@ -47,9 +47,9 @@ struct EventMsg {
 
     T get(T)() {
         static if(is(T == double)) {
-            return payload.bitcast!double;
+            return payload.bitcastTo!double;
         } else static if(is(T == float)) {
-            return cast(float)payload.bitcast!double;
+            return cast(float)payload.bitcastTo!double;
         } else static if(isObject!T) {
             return cast(T)cast(void*)payload;
         } else {
