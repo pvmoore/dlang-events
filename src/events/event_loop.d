@@ -6,54 +6,27 @@ module events.event_loop;
  * the max number of message types is currently 64.
  *
  * Subscribe:
- *      messages().subscribe(mask, delegate);
+ *      getEvents().subscribe(mask, delegate);
  *
  * Unsubscribe:
- *      messages().unsubscribe(mask, delegate);
+ *      getEvents().unsubscribe(mask, delegate);
  *
  * Fire a message:
- *      messages().fire(message);
+ *      getEvents().fire(message);
  */
 import events.all;
 
 __gshared EventLoop msgLoop;
-//========================================================
 
 alias MessageDelegate = void delegate(EventMsg);
 
 void initEvents(uint queueSize) {
+    log("Initialising events");
     msgLoop = new EventLoop(queueSize);
 }
 EventLoop getEvents() {
     assert(msgLoop !is null, "Call initEvents() before getEvents()");
     return msgLoop;
-}
-
-abstract class Subscriber {
-    ulong msgMask;
-    string name;
-    StopWatch watch;
-    uint count;
-    this(string name, ulong mask) {
-        this.name    = name;
-        this.msgMask = mask;
-    }
-}
-final class DelegateSubscriber : Subscriber {
-    MessageDelegate call;
-    this(string name, ulong mask, MessageDelegate m) {
-        super(name,mask);
-        this.call = m;
-    }
-}
-final class QueueSubscriber : Subscriber {
-    IQueue!EventMsg queue;
-    Semaphore semaphore;
-    this(string name, ulong mask, IQueue!EventMsg queue, Semaphore s) {
-        super(name,mask);
-        this.queue     = queue;
-        this.semaphore = s;
-    }
 }
 
 final class EventLoop {
@@ -66,11 +39,12 @@ private:
     bool running = true;
 public:
     this(uint queueSize) {
-        this.semaphore   = new Semaphore();
-        this.queue       = makeMPMCQueue!EventMsg(queueSize);
-        this.subscribers = new Array!Subscriber;
+        this.log("Creating with queueSize %s", queueSize);
+        this.semaphore       = new Semaphore();
+        this.queue           = makeMPMCQueue!EventMsg(queueSize);
+        this.subscribers     = new Array!Subscriber;
         this.subscriberMutex = new Mutex;
-        this.threads.assumeSafeAppend();
+
         startMessageThreads(1);
     }
     override string toString() {
@@ -101,42 +75,59 @@ public:
     void addThreads(int num) {
         startMessageThreads(num);
     }
-    @Async
     void subscribe(string name, ulong mask, MessageDelegate d) {
+        this.log("subscribe %s 0x%x", name, mask);
+
         subscriberMutex.lock();
         scope(exit) subscriberMutex.unlock();
 
-        subscribers.add(new DelegateSubscriber(name, mask, d));
+        // COW
+        auto temp = subscribers.clone();
+        temp.add(new DelegateSubscriber(name, mask, d));
+        this.subscribers = temp;
     }
-    @Async
     void subscribe(string name, ulong mask, IQueue!EventMsg queue, Semaphore sem=null) {
+        this.log("subscribe %s 0x%x", name, mask);
+
         subscriberMutex.lock();
         scope(exit) subscriberMutex.unlock();
 
-        subscribers.add(new QueueSubscriber(name, mask, queue, sem));
+        // COW
+        auto temp = subscribers.clone();
+        temp.add(new QueueSubscriber(name, mask, queue, sem));
+        this.subscribers = temp;
     }
-    @Async
     void unsubscribe(string name, ulong mask=ulong.max) {
+        this.log("unsubscribe %s 0x%x", name, mask);
+
         subscriberMutex.lock();
         scope(exit) subscriberMutex.unlock();
 
-        for(auto i=0; i<subscribers.length; i++) {
-            if(subscribers[i].name==name) {
-                subscribers[i].msgMask &= ~mask;
-                if(subscribers[i].msgMask==0) {
-                    subscribers.removeAt(i);
+        auto temp = subscribers.clone();
+
+        for(auto i=0; i<temp.length; i++) {
+            if(temp[i].name==name) {
+                temp[i].msgMask &= ~mask;
+
+                if(temp[i].msgMask==0) {
+                    temp.removeAt(i);
                 }
+                // COW
+                this.subscribers = temp;
                 return;
             }
         }
     }
-    @Async
     void fire(EventMsg m) {
         queue.push(m);
         semaphore.notify();
     }
+    void fire(T)(ulong id, T value) {
+        fire(EventMsg(id, value));
+    }
 private:
     void startMessageThreads(int numThreads) {
+        this.log("Starting %s message threads", numThreads);
         for(auto i=0; i<numThreads; i++) {
             auto t = new Thread(&loop);
             t.isDaemon = true;
@@ -145,40 +136,43 @@ private:
             t.start();
         }
     }
-    Subscriber[] copySubscribers() {
-        subscriberMutex.lock();
-        scope(exit) subscriberMutex.unlock();
+    void handleMessage(EventMsg msg) {
+        auto id   = msg.id;
+        auto subs = this.subscribers;
 
-        return subscribers[].dup;
+        foreach(s; subs) {
+            if(s.msgMask & id) {
+                s.count++;
+                s.watch.start();
+                auto ds = cast(DelegateSubscriber)s;
+                if(ds) {
+                    ds.call(msg);
+                } else {
+                    auto qs = cast(QueueSubscriber)s;
+                    qs.queue.push(msg);
+                    if(qs.semaphore) {
+                        qs.semaphore.notify();
+                    }
+                }
+                s.watch.stop();
+            }
+        }
     }
     void loop() {
         while(true) {
             try{
                 semaphore.wait();
+
                 if(!running) break;
 
                 // check the queue for work
-                auto msg  = queue.pop();
-                auto id   = msg.id;
-                auto subs = copySubscribers();
-
-                foreach(s; subs) {
-                    if(s.msgMask & id) {
-                        s.count++;
-                        s.watch.start();
-                        auto ds = cast(DelegateSubscriber)s;
-                        if(ds) {
-                            ds.call(msg);
-                        } else {
-                            auto qs = cast(QueueSubscriber)s;
-                            qs.queue.push(msg);
-                            if(qs.semaphore) {
-                                qs.semaphore.notify();
-                            }
-                        }
-                        s.watch.stop();
-                    }
+                EventMsg[5] sink;
+                auto count = queue.drain(sink);
+                foreach(i; 0..count) {
+                    auto msg = sink[i];
+                    handleMessage(msg);
                 }
+
             }catch(Error e) {
                 log("Events: %s exception: %s", Thread.getThis().name, e.toString);
             }

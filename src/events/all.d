@@ -8,11 +8,11 @@ import common :
     Array, Async, IQueue,
     bitcastTo, expect, isObject, makeMPMCQueue, flushConsole;
 
-import std.stdio    : writefln;
-import std.format   : format;
-import std.datetime.stopwatch : StopWatch;
-import std.typecons : tuple, Tuple;
-import std.array    : appender, array;
+import std.stdio               : writefln;
+import std.format              : format;
+import std.datetime.stopwatch  : StopWatch;
+import std.typecons            : tuple, Tuple;
+import std.array               : appender, array;
 import std.algorithm.iteration : map;
 
 import core.thread         : Thread;

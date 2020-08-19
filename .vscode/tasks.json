@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "dub",
+			"run": true,
+			"compiler": "dmd",
+			"archType": "x86_64",
+			"buildType": "debug",
+			"configuration": "test",
+			"_generated": true,
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"label": "dub-auto: Run events",
+			"detail": "dub run --compiler=dmd -a=x86_64 -b=debug -c=test"
+		}
+	]
+}
