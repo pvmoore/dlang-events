@@ -47,6 +47,12 @@ public:
 
         startMessageThreads(1);
     }
+    ~this() {
+        running = false;
+        foreach(i; 0..threads.length) {
+            semaphore.notify();
+        }
+    }
     override string toString() {
         return "[EventLoop #threads=%s]".format(getNumThreads());
     }
@@ -127,7 +133,7 @@ public:
     }
 private:
     void startMessageThreads(int numThreads) {
-        this.log("Starting %s message threads", numThreads);
+        this.log("Starting %s message threads (%s total message threads)", numThreads, threads.length+1);
         for(auto i=0; i<numThreads; i++) {
             auto t = new Thread(&loop);
             t.isDaemon = true;

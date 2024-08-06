@@ -9,3 +9,5 @@ bin/
 
 *.exe
 *.lib
+*.lnk
+*.pdb
