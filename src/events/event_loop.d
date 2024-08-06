@@ -136,6 +136,31 @@ private:
             t.start();
         }
     }
+    void loop() {
+        while(true) {
+            try{
+                // Wait for notify to be called
+                semaphore.wait();
+
+                // Take the next 5 items off the queue if possible
+                EventMsg[5] sink;
+                while(running) {
+                    auto count = queue.drain(sink);
+                    if(count==0) break;
+
+                    foreach(i; 0..count) {
+                        auto msg = sink[i];
+                        handleMessage(msg);
+                    }
+                }
+
+                // No more work
+
+            }catch(Error e) {
+                log("Events: %s exception: %s", Thread.getThis().name, e.toString);
+            }
+        }
+    }
     void handleMessage(EventMsg msg) {
         auto id   = msg.id;
         auto subs = this.subscribers;
@@ -155,26 +180,6 @@ private:
                     }
                 }
                 s.watch.stop();
-            }
-        }
-    }
-    void loop() {
-        while(true) {
-            try{
-                semaphore.wait();
-
-                if(!running) break;
-
-                // check the queue for work
-                EventMsg[5] sink;
-                auto count = queue.drain(sink);
-                foreach(i; 0..count) {
-                    auto msg = sink[i];
-                    handleMessage(msg);
-                }
-
-            }catch(Error e) {
-                log("Events: %s exception: %s", Thread.getThis().name, e.toString);
             }
         }
     }
