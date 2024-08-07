@@ -48,7 +48,7 @@ public:
         startMessageThreads(1);
     }
     ~this() {
-        running = false;
+        running.atomicSet(false);
         foreach(i; 0..threads.length) {
             semaphore.notify();
         }
@@ -143,14 +143,15 @@ private:
         }
     }
     void loop() {
+        EventMsg[4] sink;
+
         while(true) {
             try{
-                // Wait for notify to be called
+                // Consume a notification/wait
                 semaphore.wait();
 
-                // Take the next 5 items off the queue if possible
-                EventMsg[5] sink;
-                while(running) {
+                // Take the next 4 items off the queue if possible
+                while(running.atomicIsTrue()) {
                     auto count = queue.drain(sink);
                     if(count==0) break;
 
@@ -163,7 +164,7 @@ private:
                 // No more work
 
             }catch(Error e) {
-                log("Events: %s exception: %s", Thread.getThis().name, e.toString);
+                this.log("%s exception: %s", Thread.getThis().name, e.toString);
             }
         }
     }

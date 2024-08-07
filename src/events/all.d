@@ -5,7 +5,7 @@ public:
 import events;
 import logging;
 import common :
-    Array, Async, IQueue,
+    Array, Async, IQueue, atomicSet, atomicIsTrue,
     bitcastTo, expect, isObject, makeMPMCQueue, flushConsole;
 
 import std.stdio               : writefln;
