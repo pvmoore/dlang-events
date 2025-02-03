@@ -33,7 +33,7 @@ final class EventLoop {
 private:
     Semaphore semaphore;
     IQueue!EventMsg queue;
-    Array!Subscriber subscribers;
+    Subscriber[] subscribers;
     Mutex subscriberMutex;
     Thread[] threads;
     bool running = true;
@@ -42,7 +42,6 @@ public:
         this.log("Creating with queueSize %s", queueSize);
         this.semaphore       = new Semaphore();
         this.queue           = makeMPMCQueue!EventMsg(queueSize);
-        this.subscribers     = new Array!Subscriber;
         this.subscriberMutex = new Mutex;
 
         startMessageThreads(1);
@@ -88,8 +87,8 @@ public:
         scope(exit) subscriberMutex.unlock();
 
         // COW
-        auto temp = subscribers.clone();
-        temp.add(new DelegateSubscriber(name, mask, d));
+        auto temp = subscribers.dup;
+        temp ~= new DelegateSubscriber(name, mask, d);
         this.subscribers = temp;
     }
     void subscribe(string name, ulong mask, IQueue!EventMsg queue, Semaphore sem=null) {
@@ -99,8 +98,8 @@ public:
         scope(exit) subscriberMutex.unlock();
 
         // COW
-        auto temp = subscribers.clone();
-        temp.add(new QueueSubscriber(name, mask, queue, sem));
+        auto temp = subscribers.dup;
+        temp ~= new QueueSubscriber(name, mask, queue, sem);
         this.subscribers = temp;
     }
     void unsubscribe(string name, ulong mask=ulong.max) {
@@ -109,7 +108,7 @@ public:
         subscriberMutex.lock();
         scope(exit) subscriberMutex.unlock();
 
-        auto temp = subscribers.clone();
+        auto temp = subscribers.dup;
 
         for(auto i=0; i<temp.length; i++) {
             if(temp[i].name==name) {
