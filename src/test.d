@@ -2,7 +2,7 @@
 import std.stdio : writefln;
 import std.format : format;
 import core.thread;
-import common : IQueue, makeMPMCQueue;
+import common.containers : IQueue, makeMPMCQueue; 
 import events;
 
 void main() {
