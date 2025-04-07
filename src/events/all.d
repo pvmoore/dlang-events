@@ -4,9 +4,10 @@ public:
 
 import events;
 import logging;
-import common : Async, atomicSet, atomicIsTrue,
-                bitcastTo, expect, isObject, flushConsole, removeAt;
+import common            : Async;
 import common.containers : IQueue, makeMPMCQueue;
+import common.io         : flushConsole;
+import common.utils      : atomicSet, atomicIsTrue, bitcastTo, expect, isObject, removeAt;
 
 import std.stdio               : writefln;
 import std.format              : format;
