@@ -36,8 +36,11 @@ private:
     Subscriber[] subscribers;
     Mutex subscriberMutex;
     Thread[] threads;
-    bool running = true;
+    Atomic!bool shuttingDown;
+    Atomic!bool shutdownNow;
 public:
+    uint getNumThreads() { return cast(uint)threads.length; }
+
     this(uint queueSize) {
         this.log("Creating with queueSize %s", queueSize);
         this.semaphore       = new Semaphore();
@@ -47,16 +50,37 @@ public:
         startMessageThreads(1);
     }
     ~this() {
-        running.atomicSet(false);
-        foreach(i; 0..threads.length) {
+        shutdown();
+    }
+    /**
+     * Shutdown the event loop, discarding any pending messages. This returns immediately
+     */
+    void shutdown() {
+        if(shuttingDown.compareAndSet(false, true)) {
+            this.log("Shutting down immediately");
+            shutdownNow.set(true);
+            for(auto i=0; i<threads.length; i++) {
+                semaphore.notify();
+            }
+        }
+    }
+    /**
+     * Shutdown the event loop and wait for all threads to exit.
+     * This blocks until all threads have exited.
+     */
+    void shutdownAndWait() {
+        this.log("Shutting down and waiting for threads to finish");
+        shuttingDown.set(true);
+        for(auto i=0; i<threads.length; i++) {
             semaphore.notify();
         }
+        foreach(t; threads) {
+            t.join();
+        }
+        this.log("Shutdown complete");
     }
     override string toString() {
         return "[EventLoop #threads=%s]".format(getNumThreads());
-    }
-    uint getNumThreads() {
-        return cast(uint)threads.length;
     }
     Tuple!(string,ulong,ulong,uint)[] getSubscriberStats() {
         subscriberMutex.lock();
@@ -70,12 +94,6 @@ public:
                 it.count)
                 )
             .array;
-    }
-    void shutdown() {
-        running = false;
-        for(auto i=0; i<threads.length; i++) {
-            semaphore.notify();
-        }
     }
     void addThreads(int num) {
         startMessageThreads(num);
@@ -124,6 +142,7 @@ public:
         }
     }
     void fire(EventMsg m) {
+        if(isShuttingDown()) return;
         queue.push(m);
         semaphore.notify();
     }
@@ -131,6 +150,12 @@ public:
         fire(EventMsg(id, value));
     }
 private:
+    bool isShuttingDown() {
+        return shuttingDown.get();
+    }
+    bool shouldShutdownImmediately() {
+        return shutdownNow.get();
+    }
     void startMessageThreads(int numThreads) {
         this.log("Starting %s message threads (%s total message threads)", numThreads, threads.length+1);
         for(auto i=0; i<numThreads; i++) {
@@ -144,13 +169,13 @@ private:
     void loop() {
         EventMsg[4] sink;
 
-        while(true) {
+        while(!isShuttingDown()) {
             try{
-                // Consume a notification/wait
+                // Consume a semaphore
                 semaphore.wait();
 
                 // Take the next 4 items off the queue if possible
-                while(running.atomicIsTrue()) {
+                while(!shouldShutdownImmediately()) {
                     auto count = queue.drain(sink);
                     if(count==0) break;
 
@@ -163,9 +188,10 @@ private:
                 // No more work
 
             }catch(Error e) {
-                this.log("%s exception: %s", Thread.getThis().name, e.toString);
+                log("%s exception: %s", Thread.getThis().name, e.toString);
             }
         }
+        log("Thread %s exited", Thread.getThis().name);
     }
     void handleMessage(EventMsg msg) {
         auto id   = msg.id;

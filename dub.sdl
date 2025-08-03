@@ -10,13 +10,12 @@ buildType "release" {
 }
 
 configuration "test" {
-	mainSourceFile "src/test.d"
 	targetType "executable"
 	targetName "bin-test"
 }
 configuration "library" {
 	targetType "library"
-	excludedSourceFiles "src/test.d"
+	excludedSourceFiles "src/test/**"
 }
 
 dependency "common" version="~master"

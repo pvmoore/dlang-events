@@ -4,10 +4,11 @@ public:
 
 import events;
 import logging;
+
 import common            : Async;
 import common.containers : IQueue, makeMPMCQueue;
 import common.io         : flushConsole;
-import common.utils      : atomicSet, atomicIsTrue, bitcastTo, expect, isObject, removeAt;
+import common.utils      : bitcastTo, isObject, removeAt, Atomic;
 
 import std.stdio               : writefln;
 import std.format              : format;
@@ -20,4 +21,3 @@ import core.thread         : Thread;
 import core.sync.semaphore : Semaphore;
 import core.sync.mutex     : Mutex;
 import core.time           : dur;
-import core.atomic         : atomicLoad, atomicStore, atomicOp;
