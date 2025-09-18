@@ -44,7 +44,7 @@ public:
     this(uint queueSize) {
         this.log("Creating with queueSize %s", queueSize);
         this.semaphore       = new Semaphore();
-        this.queue           = makeMPMCQueue!EventMsg(queueSize);
+        this.queue           = new MutexQueue!EventMsg(queueSize);
         this.subscriberMutex = new Mutex;
 
         startMessageThreads(1);
@@ -143,6 +143,9 @@ public:
     }
     void fire(EventMsg m) {
         if(isShuttingDown()) return;
+
+        throwIf(m.id == 0, "EventMsg.id cannot not be 0");
+
         queue.push(m);
         semaphore.notify();
     }
@@ -176,6 +179,7 @@ private:
 
                 // Take the next 4 items off the queue if possible
                 while(!shouldShutdownImmediately()) {
+
                     auto count = queue.drain(sink);
                     if(count==0) break;
 
